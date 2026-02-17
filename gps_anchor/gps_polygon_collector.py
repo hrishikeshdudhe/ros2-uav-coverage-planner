@@ -1,153 +1,171 @@
 #!/usr/bin/env python3
 
+import math
 import rclpy
 from rclpy.node import Node
 
-from geometry_msgs.msg import PointStamped, Point, PolygonStamped, Point32
+from geometry_msgs.msg import PointStamped, PolygonStamped, Point32
 from visualization_msgs.msg import Marker
 from std_srvs.srv import Trigger
 
-from math import cos, radians, pi, sqrt
+CLOSE_RADIUS = 3.0  # meters
 
 
-class GPSPolygonCollector(Node):
+def distance_2d(p1, p2):
+    """Compute 2D Euclidean distance between points."""
+    return math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2)
 
+
+class PolygonCollector(Node):
     def __init__(self):
-        super().__init__('gps_polygon_collector')
+        super().__init__('polygon_collector')
 
-        # ---- Parameters ----
-        self.declare_parameter('origin_latitude', 49.4401)
-        self.declare_parameter('origin_longitude', 7.7491)
+        # --------------------------------------------------
+        # Storage
+        # --------------------------------------------------
+        self.points = []
+        self.polygon_closed = False
 
-        self.origin_lat = self.get_parameter('origin_latitude').value
-        self.origin_lon = self.get_parameter('origin_longitude').value
+        # --------------------------------------------------
+        # Subscribers
+        # --------------------------------------------------
+        self.point_sub = self.create_subscription(
+            PointStamped,
+            'clicked_point',
+            self.point_callback,
+            10
+        )
 
-        self.R = 6371000.0
-        self.min_dist = 5.0
+        # --------------------------------------------------
+        # Publishers
+        # --------------------------------------------------
+        self.polygon_pub = self.create_publisher(
+            PolygonStamped,
+            'collected_polygon',
+            10
+        )
 
-        self.points_xy = []
-        self.points_gps = []
-        self.closed = False
+        self.marker_pub = self.create_publisher(
+            Marker,
+            'polygon_marker',
+            10
+        )
 
-        # ---- ROS Interfaces ----
-        self.create_subscription(PointStamped, '/clicked_point', self.point_cb, 10)
+        # --------------------------------------------------
+        # Reset Service
+        # --------------------------------------------------
+        self.reset_srv = self.create_service(
+            Trigger,
+            'reset_polygon',
+            self.reset_callback
+        )
 
-        self.marker_pub = self.create_publisher(Marker, '/polygon_marker', 10)
-        self.poly_pub = self.create_publisher(PolygonStamped, '/polygon_gps', 10)
+        self.get_logger().info("Polygon Collector Ready.")
 
-        self.create_service(Trigger, '/close_polygon', self.close_cb)
+    # --------------------------------------------------
+    # Reset Service
+    # --------------------------------------------------
+    def reset_callback(self, request, response):
+        self.points = []
+        self.polygon_closed = False
+        self.publish_marker()
+        response.success = True
+        response.message = "Polygon reset."
+        return response
 
-        self.get_logger().info('GPS Polygon Collector running')
+    # --------------------------------------------------
+    # Clicked Point Callback
+    # --------------------------------------------------
+    def point_callback(self, msg: PointStamped):
 
-    # ------------------------------------------------------------------
-
-    def distance(self, a: Point, b: Point):
-        return sqrt((a.x - b.x)**2 + (a.y - b.y)**2)
-
-    def xy_to_latlon(self, x, y):
-        dlat = y / self.R * (180.0 / pi)
-        dlon = x / (self.R * cos(radians(self.origin_lat))) * (180.0 / pi)
-        return self.origin_lat + dlat, self.origin_lon + dlon
-
-    # ------------------------------------------------------------------
-
-    def point_cb(self, msg: PointStamped):
-        if self.closed:
+        if self.polygon_closed:
+            self.get_logger().info("Polygon already closed. Reset to start a new one.")
             return
 
-        p = Point(x=msg.point.x, y=msg.point.y, z=0.0)
+        # Directly use the clicked point in map frame
+        new_point = msg.point
 
-        if self.points_xy and self.distance(p, self.points_xy[-1]) < self.min_dist:
-            self.get_logger().warn('Point too close — ignored')
-            return
+        # Check closing condition
+        if len(self.points) >= 3:
+            first_point = self.points[0]
+            dist = distance_2d(new_point, first_point)
+            if dist <= CLOSE_RADIUS:
+                self.get_logger().info("Closing polygon.")
+                self.polygon_closed = True
+                self.publish_polygon(close=True)
+                self.publish_marker(close=True)
+                return
 
-        lat, lon = self.xy_to_latlon(p.x, p.y)
+        # Otherwise add point
+        self.points.append(new_point)
+        self.get_logger().info(f"Added point ({new_point.x:.2f}, {new_point.y:.2f})")
 
-        self.points_xy.append(p)
-        self.points_gps.append((lat, lon))
+        self.publish_polygon(close=False)
+        self.publish_marker(close=False)
 
-        self.get_logger().info(f'Point {len(self.points_xy)}: lat={lat:.6f}, lon={lon:.6f}')
+    # --------------------------------------------------
+    # Publish Polygon
+    # --------------------------------------------------
+    def publish_polygon(self, close=False):
+        poly_msg = PolygonStamped()
+        poly_msg.header.frame_id = "map"
+        poly_msg.header.stamp = self.get_clock().now().to_msg()
 
-        self.publish_markers()
+        for p in self.points:
+            poly_msg.polygon.points.append(Point32(x=p.x, y=p.y, z=p.z))
 
-    # ------------------------------------------------------------------
+        if close and len(self.points) >= 3:
+            first = self.points[0]
+            poly_msg.polygon.points.append(Point32(x=first.x, y=first.y, z=first.z))
 
-    def close_cb(self, req, res):
-        if len(self.points_xy) < 3:
-            res.success = False
-            res.message = 'Need at least 3 points'
-            return res
+        self.polygon_pub.publish(poly_msg)
 
-        self.closed = True
-        self.publish_markers(close_loop=True)
-        self.publish_polygon()
+    # --------------------------------------------------
+    # Publish Marker (Visualization)
+    # --------------------------------------------------
+    def publish_marker(self, close=False):
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "polygon"
+        marker.id = 0
+        marker.type = Marker.LINE_STRIP
+        marker.action = Marker.ADD
 
-        self.get_logger().info('Polygon closed')
-        res.success = True
-        res.message = 'Polygon closed'
-        return res
+        marker.scale.x = 0.5
+        marker.color.a = 1.0
 
-    # ------------------------------------------------------------------
+        # Set color based on closed/open polygon
+        if self.polygon_closed:
+            marker.scale.x = 1.0 
+            marker.scale.y = 1.0 
+            marker.scale.z = 1.0
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+        else:
+            marker.scale.x = 1.0 
+            marker.scale.y = 1.0 
+            marker.scale.z = 1.0
+            marker.color.r = 1.0
+            marker.color.g = 0.0
+            marker.color.b = 0.0
 
-    def publish_markers(self, close_loop=False):
-        now = self.get_clock().now().to_msg()
+        for p in self.points:
+            marker.points.append(p)
 
-        # ---- Points ----
-        pts = Marker()
-        pts.header.frame_id = 'map'
-        pts.header.stamp = now
-        pts.ns = 'points'
-        pts.id = 0
-        pts.type = Marker.SPHERE_LIST
-        pts.action = Marker.ADD
-        pts.scale.x = 1.0
-        pts.scale.y = 1.0
-        pts.scale.z = 1.0
-        pts.color.r = 1.0
-        pts.color.g = 0.0
-        pts.color.b = 0.0
-        pts.color.a = 1.0
-        pts.points = list(self.points_xy)
+        if close and len(self.points) >= 3:
+            marker.points.append(self.points[0])
 
-        self.marker_pub.publish(pts)
-
-        # ---- Edges ----
-        line = Marker()
-        line.header.frame_id = 'map'
-        line.header.stamp = now
-        line.ns = 'edges'
-        line.id = 1
-        line.type = Marker.LINE_STRIP
-        line.action = Marker.ADD
-        line.scale.x = 0.5
-        line.color.r = 1.0
-        line.color.g = 0.0
-        line.color.b = 0.0
-        line.color.a = 1.0
-
-        line.points = list(self.points_xy)
-
-        if close_loop:
-            line.points.append(self.points_xy[0])
-
-        self.marker_pub.publish(line)
-
-    # ------------------------------------------------------------------
-
-    def publish_polygon(self):
-        poly = PolygonStamped()
-        poly.header.frame_id = 'gps'
-        poly.header.stamp = self.get_clock().now().to_msg()
-
-        for lat, lon in self.points_gps:
-            poly.polygon.points.append(Point32(x=lon, y=lat, z=0.0))
-
-        self.poly_pub.publish(poly)
+        self.marker_pub.publish(marker)
 
 
+# --------------------------------------------------
+# Main
+# --------------------------------------------------
 def main(args=None):
     rclpy.init(args=args)
-    node = GPSPolygonCollector()
+    node = PolygonCollector()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

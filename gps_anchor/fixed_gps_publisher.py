@@ -18,7 +18,7 @@ class FixedGPSPublisher(Node):
             10
         )
 
-        self.publisher_ = self.create_publisher(NavSatFix, '/gps/fix', 10)
+        self.publisher_ = self.create_publisher(NavSatFix, 'gps/fix', 10)
         self.lat = 0.0
         self.lon = 0.0
         self.alt = 0.0
@@ -35,42 +35,6 @@ class FixedGPSPublisher(Node):
         msg.longitude = self.lon
         msg.altitude = self.alt
         self.publisher_.publish(msg)
-
-
-"""class FixedGPSPublisher(Node):
-
-    def __init__(self):
-        super().__init__('fixed_gps_publisher')
-
-        # Declare parameters for runtime configuration
-        self.declare_parameter('latitude', 49.4401)   # default Kaiserslautern
-        self.declare_parameter('longitude', 7.7491)
-        self.declare_parameter('altitude', 0.0)
-
-        # Publisher for NavSatFix
-        self.publisher_ = self.create_publisher(
-            NavSatFix,
-            '/gps/fix',
-            10
-        )
-
-        # Timer to periodically publish
-        self.timer = self.create_timer(1.0, self.publish_fix)
-
-    def publish_fix(self):
-        # Read parameters
-        lat = self.get_parameter('latitude').get_parameter_value().double_value
-        lon = self.get_parameter('longitude').get_parameter_value().double_value
-        alt = self.get_parameter('altitude').get_parameter_value().double_value
-
-        # Create GPS message
-        msg = NavSatFix()
-        msg.latitude = lat
-        msg.longitude = lon
-        msg.altitude = alt
-
-        # Publish
-        self.publisher_.publish(msg)"""
 
 def main():
     rclpy.init()
