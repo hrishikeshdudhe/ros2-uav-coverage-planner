@@ -10,30 +10,33 @@ The package allows you to:
 ---
 
 ## Repository Structure
-
+All future C++ source code will be added with the `src` folder, and the headers for the code will be added with `include/gps_anchor/` when necessary
 ```
 gps_anchor/
+├── CMakeLists.txt
+├── package.xml
+├── README.md
+│
+├── include/
+│   └── gps_anchor/
+│       └── (C++ headers, if any)
+│
+├── src/
+│   └── (C++ source files, if any)
+│
 ├── gps_anchor/
 │   ├── __init__.py
-│   ├── fixed_gps_publisher.py      # Publishes /gps/fix (manual or gp_origin-based)
-│   ├── fake_gp_origin.py           # Fake /gp_origin for local testing
-│   ├── map_anchor.py               # Anchors map frame using gp_origin
-│   └── gps_polygon_collector.py    # Collects points and builds polygons
+│   ├── fake_gp_origin.py
+│   ├── fixed_gps_publisher.py
+│   ├── map_anchor.py
+│   └── gps_polygon_collector.py
 │
 ├── launch/
-│   ├── rviz_satellite_launch.py            # Manual lat/lon workflow
-│   └── rviz_satellite_gp_origin_launch.py  # gp_origin-based workflow
+│   ├── rviz_satellite_launch.py
+│   └── rviz_satellite_gp_origin_launch.py
 │
 ├── rviz/
-│   └── rviz_satellite_config.rviz   # RViz config with satellite imagery
-│
-├── resource/
-│   └── gps_anchor
-│
-├── package.xml
-├── setup.py
-├── setup.cfg
-└── README.md
+│   └── (RViz configuration files)
 ```
 
 ---
@@ -43,6 +46,9 @@ gps_anchor/
 ### RViz Satellite Plugin
 
 This package **does not ship** the RViz satellite plugin.
+This is the repo for the rviz_satellite plugin needed for the project.
+
+https://github.com/nobleo/rviz_satellite/tree/main/
 
 You must clone it **into your workspace**
 
