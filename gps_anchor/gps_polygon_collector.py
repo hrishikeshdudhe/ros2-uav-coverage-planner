@@ -3,13 +3,11 @@
 import math
 import rclpy
 from rclpy.node import Node
-
 from geometry_msgs.msg import PointStamped, PolygonStamped, Point32
 from visualization_msgs.msg import Marker
 from std_srvs.srv import Trigger
 
 CLOSE_RADIUS = 3.0  # meters
-
 
 def distance_2d(p1, p2):
     """Compute 2D Euclidean distance between points."""
@@ -19,6 +17,11 @@ def distance_2d(p1, p2):
 class PolygonCollector(Node):
     def __init__(self):
         super().__init__('polygon_collector')
+
+        from rclpy.qos import QoSProfile, QoSDurabilityPolicy
+
+        # Create QoS profile for transient local durability
+        transient_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
 
         # --------------------------------------------------
         # Storage
@@ -42,13 +45,13 @@ class PolygonCollector(Node):
         self.polygon_pub = self.create_publisher(
             PolygonStamped,
             'collected_polygon',
-            10
+            transient_qos
         )
 
         self.marker_pub = self.create_publisher(
             Marker,
             'polygon_marker',
-            10
+            transient_qos  # optional, only if you want late RViz subscribers to see the last polygon
         )
 
         # --------------------------------------------------

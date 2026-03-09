@@ -1,15 +1,9 @@
 cmake_minimum_required(VERSION 3.8)
 project(gps_anchor)
 
-# Enable strict warnings for C++ (optional)
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
-
-# --- Find dependencies ---
+# Dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
-
 find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -18,7 +12,7 @@ find_package(geometry_msgs REQUIRED)
 include_directories(include)
 
 # --- C++ executables section ---
-# (Add your C++ nodes here if needed in the future)
+# (Add C++ nodes here if needed)
 # Example:
 # add_executable(cpp_node src/cpp_node.cpp)
 # ament_target_dependencies(cpp_node rclcpp geometry_msgs)
@@ -35,7 +29,6 @@ install(DIRECTORY
 ament_python_install_package(${PROJECT_NAME})
 
 # --- Install Python executables (ROS2 nodes) ---
-# One install per file to allow RENAME without errors
 install(PROGRAMS
   gps_anchor/fake_gp_origin.py
   DESTINATION lib/${PROJECT_NAME}
@@ -60,13 +53,10 @@ install(PROGRAMS
   RENAME gps_polygon_collector
 )
 
-# --- Optional: Linting / testing ---
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  set(ament_cmake_copyright_FOUND TRUE)
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
+install(PROGRAMS 
+  gps_anchor/coverage_client.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME coverage_client
+)
 
-# --- Finalize package ---
 ament_package()
