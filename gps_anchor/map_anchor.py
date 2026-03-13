@@ -3,7 +3,6 @@
 import rclpy
 from rclpy.node import Node
 from geographic_msgs.msg import GeoPointStamped
-# import math
 
 
 class MapAnchor(Node):
@@ -58,37 +57,12 @@ class MapAnchor(Node):
             'map (0,0,0) now corresponds to this GPS location.'
         )
 
-'''        # Optional check: ENU conversion of the origin itself
-        dx, dy = self.latlon_to_xy(lat, lon)
-        self.get_logger().info(
-            f'ENU coordinates of gp_origin relative to itself: '
-            f'x={dx:.2f} m, y={dy:.2f} m'
-        )
-
-    def latlon_to_xy(self, lat, lon):
-        """
-        Convert lat/lon to local ENU meters
-        relative to stored reference origin.
-        """
-        if self.ref_lat is None or self.ref_lon is None:
-            return 0.0, 0.0
-
-        d_lat = math.radians(lat - self.ref_lat)
-        d_lon = math.radians(lon - self.ref_lon)
-
-        x = self.R * d_lon * math.cos(math.radians(self.ref_lat))
-        y = self.R * d_lat
-
-        return x, y'''
-
-
 def main():
     rclpy.init()
     node = MapAnchor()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

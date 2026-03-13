@@ -23,15 +23,11 @@ class PolygonCollector(Node):
         # Create QoS profile for transient local durability
         transient_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
 
-        # --------------------------------------------------
         # Storage
-        # --------------------------------------------------
         self.points = []
         self.polygon_closed = False
 
-        # --------------------------------------------------
         # Subscribers
-        # --------------------------------------------------
         self.point_sub = self.create_subscription(
             PointStamped,
             'clicked_point',
@@ -39,9 +35,7 @@ class PolygonCollector(Node):
             10
         )
 
-        # --------------------------------------------------
         # Publishers
-        # --------------------------------------------------
         self.polygon_pub = self.create_publisher(
             PolygonStamped,
             'collected_polygon',
@@ -51,12 +45,10 @@ class PolygonCollector(Node):
         self.marker_pub = self.create_publisher(
             Marker,
             'polygon_marker',
-            transient_qos  # optional, only if you want late RViz subscribers to see the last polygon
+            transient_qos  
         )
 
-        # --------------------------------------------------
         # Reset Service
-        # --------------------------------------------------
         self.reset_srv = self.create_service(
             Trigger,
             'reset_polygon',
@@ -65,20 +57,29 @@ class PolygonCollector(Node):
 
         self.get_logger().info("Polygon Collector Ready.")
 
-    # --------------------------------------------------
     # Reset Service
-    # --------------------------------------------------
     def reset_callback(self, request, response):
+        
         self.points = []
         self.polygon_closed = False
-        self.publish_marker()
+        
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "polygon"
+        marker.id = 0
+        marker.action = Marker.DELETE
+
+        self.marker_pub.publish(marker)
+
         response.success = True
         response.message = "Polygon reset."
+
+        self.get_logger().info("Polygon reset. Ready to collect new points.")
+
         return response
 
-    # --------------------------------------------------
     # Clicked Point Callback
-    # --------------------------------------------------
     def point_callback(self, msg: PointStamped):
 
         if self.polygon_closed:
@@ -106,9 +107,7 @@ class PolygonCollector(Node):
         self.publish_polygon(close=False)
         self.publish_marker(close=False)
 
-    # --------------------------------------------------
     # Publish Polygon
-    # --------------------------------------------------
     def publish_polygon(self, close=False):
         poly_msg = PolygonStamped()
         poly_msg.header.frame_id = "map"
@@ -123,9 +122,7 @@ class PolygonCollector(Node):
 
         self.polygon_pub.publish(poly_msg)
 
-    # --------------------------------------------------
-    # Publish Marker (Visualization)
-    # --------------------------------------------------
+    # Publish Marker
     def publish_marker(self, close=False):
         marker = Marker()
         marker.header.frame_id = "map"
@@ -138,7 +135,6 @@ class PolygonCollector(Node):
         marker.scale.x = 0.5
         marker.color.a = 1.0
 
-        # Set color based on closed/open polygon
         if self.polygon_closed:
             marker.scale.x = 1.0 
             marker.scale.y = 1.0 
@@ -162,10 +158,7 @@ class PolygonCollector(Node):
 
         self.marker_pub.publish(marker)
 
-
-# --------------------------------------------------
 # Main
-# --------------------------------------------------
 def main(args=None):
     rclpy.init(args=args)
     node = PolygonCollector()

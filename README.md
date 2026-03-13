@@ -1,11 +1,13 @@
 # gps_anchor
 
-The package allows you to:
-- Anchor a local `map` frame at a given GPS origin
-- Visualize satellite imagery in RViz
-- Collect GPS-based points by clicking in RViz
-- Form and close polygons in a consistent local reference frame
-- Work either with a real GPS origin (`gp_origin`) or a fake/testing source
+ROS2 package for **GPS-based polygon collection and coverage path planning visualization** using RViz and OpenNav Coverage.
+
+This package allows a user to:
+
+1. Visualize GPS data on a satellite map in RViz  
+2. Mark a polygon interactively using clicked points  
+3. Send the polygon to the coverage planner  
+4. Visualize the resulting coverage path
 
 ---
 
@@ -43,34 +45,24 @@ gps_anchor/
 
 ## Dependencies
 
-### RViz Satellite Plugin
+### ROS2 dependencies
 
-This package **does not ship** the RViz satellite plugin.
-This is the repo for the rviz_satellite plugin needed for the project.
+- `rclpy`
+- `geometry_msgs`
+- `sensor_msgs`
+- `visualization_msgs`
+- `nav_msgs`
+- `std_srvs`
+- `tf2_ros`
 
+### External Packages
+
+This package **does not ship** the RViz satellite plugin or the Coverage Server
+These are the repos for the coverage planner and the rviz_satellite plugin needed for the project.
+https://github.com/open-navigation/opennav_coverage/tree/humble
 https://github.com/nobleo/rviz_satellite/tree/main/
 
-You must clone it **into your workspace**
-
----
-
-## High-level architecture
-
-```
-GeoPointStamped (gp_origin)
-        │
-        ▼
-   map_anchor
-        │  (TF: earth → map)
-        ▼
-fixed_gps_publisher ───► /gps/fix
-        │
-        ▼
-gps_polygon_collector ──► polygon (map frame)
-        │
-        ▼
-        RViz (satellite + points + polygon)
-```
+You must clone them **into your workspace**
 
 ---
 
@@ -83,22 +75,18 @@ Anchors the local `map` frame to the first received GPS origin.
 - `/tarot650/global_position/gp_origin` (`geographic_msgs/GeoPointStamped`)
 
 **Publishes**
-- Static TF: `earth → map`
+- `map`
 
 ---
 
 ### fixed_gps_publisher
-Publishes a stable `/gps/fix` message so RViz satellite plugins can display imagery.
+Publishes a stable `/robot_namespace/gps/fix` message so RViz satellite plugins can display imagery.
 
 ---
 
 ### gps_polygon_collector
 Allows interactive point selection and polygon creation in RViz.
-
-**Polygon close command**
-```bash
-ros2 service call /close_polygon std_srvs/srv/Trigger
-```
+By clicking the last point inside a radius of 3 m from the first point, you can close the polygon. 
 
 ---
 
@@ -183,13 +171,14 @@ Each new point:
 - Appears as a red marker
 - Is connected with a red line
 - Is logged in the terminal
+- Last point needs to be in a radius of 3 meters from the first point to successfully close the polygon
 
-### Closing the Polygon
+### Resettomg the Polygon
 
-Polygon closing is done via a **ROS 2 service**.
+Polygon resetting is done via a **ROS 2 service**.
 
 ```bash
-ros2 service call /close_polygon std_srvs/srv/Trigger
+ros2 service call /robot_namespace/reset_polygon std_srvs/srv/Trigger
 ```
 
 Rules:
@@ -216,13 +205,6 @@ The launch file loads it **relative to the package**, so no absolute paths are r
 
 ---
 
-## Coordinate conventions
-
-- GPS (lat/lon): used only for anchoring and satellite imagery
-- Map frame (ENU, meters): used for interaction, polygons, and planning
-
----
-
 ## Build & run
 
 ```bash
@@ -240,7 +222,7 @@ workspace/
 ├── src/
 │   ├── gps_anchor/        # This repo (as submodule)
 │   ├── rviz_satellite/    # External dependency
-│   └── other_packages/
+│   └── opennav_coverage/  # External dependency
 ```
 
 ---
