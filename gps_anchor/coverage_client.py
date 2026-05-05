@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
+
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PolygonStamped
-from std_srvs.srv import Trigger
+from std_msgs.msg import Empty
+from visualization_msgs.msg import Marker
 
 from opennav_coverage_msgs.action import ComputeCoveragePath
 from opennav_coverage_msgs.msg import Coordinate, Coordinates
@@ -16,154 +18,166 @@ class CoverageClient(Node):
         super().__init__('coverage_client')
 
         self.latest_polygon = None
+        self.coverage_started = False
 
-        # Subscriber
-        self.polygon_sub = self.create_subscription(
+        # Subscribers
+        self.create_subscription(
             PolygonStamped,
             'collected_polygon',
             self.polygon_callback,
             10
         )
 
-        # Publisher for the final navigation path (nav_msgs/Path)
+        self.create_subscription(
+            Empty,
+            'polygon_reset',
+            self.reset_callback,
+            10
+        )
+
+        # Publisher
         self.path_pub = self.create_publisher(
             Path,
             'coverage_path',
             10
         )
 
-        # Publisher for debug components (optional)
-        self.components_pub = self.create_publisher(
-            Path,
-            'coverage_turns_debug',
-            10
-        )
-
         # Action client
-        self._action_client = ActionClient(
+        self.client = ActionClient(
             self,
             ComputeCoveragePath,
             '/robot_namespace/compute_coverage_path'
         )
 
-        # Manual trigger service
-        self.trigger_srv = self.create_service(
-            Trigger,
-            'start_coverage',
-            self.start_coverage_callback
+        self.marker_pub = self.create_publisher(
+            Marker,
+            'coverage_markers',
+            10
         )
 
-        self.get_logger().info("Coverage Client Ready. Waiting for polygon + trigger...")
+    def is_closed(self, msg):
+        if len(msg.polygon.points) < 4:
+            return False
 
-    def polygon_callback(self, msg: PolygonStamped):
-        self.latest_polygon = msg
-        self.get_logger().info(
-            f"Polygon received with {len(msg.polygon.points)} points. "
-            "Call /start_coverage to begin planning."
-        )
+        a = msg.polygon.points[0]
+        b = msg.polygon.points[-1]
 
-    def start_coverage_callback(self, request, response):
-        if self.latest_polygon is None:
-            response.success = False
-            response.message = "No polygon available."
-            self.get_logger().warn("No polygon available to send.")
-            return response
+        return abs(a.x - b.x) < 0.01 and abs(a.y - b.y) < 0.01
 
-        if len(self.latest_polygon.polygon.points) < 3:
-            response.success = False
-            response.message = "Polygon has less than 3 points."
-            self.get_logger().warn("Polygon invalid.")
-            return response
-
-        self.get_logger().info("Starting coverage planning...")
-
-        # Convert Polygon → Coordinates
-        coordinates = []
-        for p in self.latest_polygon.polygon.points:
-            coord = Coordinate()
-            coord.axis1 = float(p.x)
-            coord.axis2 = float(p.y)
-            coordinates.append(coord)
-
-        # Create goal message
-        goal_msg = ComputeCoveragePath.Goal()
-        polygon_msg = Coordinates()
-        polygon_msg.coordinates = coordinates
-        goal_msg.polygons = [polygon_msg]
-        goal_msg.frame_id = "map"
-
-        # Wait for server
-        self.get_logger().info("Waiting for coverage server...")
-        if not self._action_client.wait_for_server(timeout_sec=5.0):
-            self.get_logger().error("Coverage server not available!")
-            response.success = False
-            response.message = "Coverage server not available."
-            return response
-
-        # Send goal
-        self.get_logger().info("Coverage server ready. Sending goal...")
-        send_goal_future = self._action_client.send_goal_async(goal_msg)
-        send_goal_future.add_done_callback(self.goal_response_callback)
-
-        response.success = True
-        response.message = "Coverage request sent."
-        return response
-
-    def goal_response_callback(self, future):
-        goal_handle = future.result()
-        if not goal_handle.accepted:
-            self.get_logger().warn("Goal rejected.")
+    def publish_start_end_markers(self, path):
+        if len(path.poses) == 0:
             return
 
-        self.get_logger().info("Goal accepted. Waiting for result...")
-        result_future = goal_handle.get_result_async()
-        result_future.add_done_callback(self.get_result_callback)
+        # -------- START MARKER (GREEN) --------
+        start = path.poses[0].pose.position
 
-    def get_result_callback(self, future):
-        result_msg = future.result().result
+        start_marker = Marker()
+        start_marker.header.frame_id = "map"
+        start_marker.header.stamp = self.get_clock().now().to_msg()
+        start_marker.ns = "coverage_points"
+        start_marker.id = 0
+        start_marker.type = Marker.SPHERE
+        start_marker.action = Marker.ADD
 
-        # Log error code + planning time
-        self.get_logger().info(
-            f"Coverage planning finished. Error code: {result_msg.error_code}"
-        )
-        self.get_logger().info(
-            f"Planning time: {result_msg.planning_time.sec}.{result_msg.planning_time.nanosec}s"
-        )
+        start_marker.pose.position = start
+        start_marker.scale.x = 1.5
+        start_marker.scale.y = 1.5
+        start_marker.scale.z = 1.5
 
-        nav_path = result_msg.nav_path
-        self.get_logger().info(
-            f"Final navigation path received with {len(nav_path.poses)} poses."
-        )
+        start_marker.color.a = 1.0
+        start_marker.color.r = 0.0
+        start_marker.color.g = 1.0
+        start_marker.color.b = 0.0
 
-        # Publish the final path
-        self.path_pub.publish(nav_path)
+        # -------- END MARKER (RED) --------
+        end = path.poses[-1].pose.position
 
-        components = result_msg.coverage_path
+        end_marker = Marker()
+        end_marker.header.frame_id = "map"
+        end_marker.header.stamp = self.get_clock().now().to_msg()
+        end_marker.ns = "coverage_points"
+        end_marker.id = 1
+        end_marker.type = Marker.SPHERE
+        end_marker.action = Marker.ADD
 
-        self.get_logger().info(
-            f"coverage_path: {len(components.swaths)} swaths, "
-            f"{len(components.turns)} turn segments."
-        )
+        end_marker.pose.position = end
+        end_marker.scale.x = 1.5
+        end_marker.scale.y = 1.5
+        end_marker.scale.z = 1.5
 
-        # Log swath endpoints
-        for i, sw in enumerate(components.swaths):
-            self.get_logger().info(
-                f"Swath {i}: start=({sw.start.x}, {sw.start.y}), "
-                f"end=({sw.end.x}, {sw.end.y})"
-            )
+        end_marker.color.a = 1.0
+        end_marker.color.r = 1.0
+        end_marker.color.g = 0.0
+        end_marker.color.b = 0.0
 
-        # Debug publish each turn segment (optional)
-        for i, turn in enumerate(components.turns):
-            self.get_logger().info(f"Turn {i}: {len(turn.poses)} poses")
-            turn.header.frame_id = "map"
-            self.components_pub.publish(turn)
+        # Publish both
+        self.marker_pub.publish(start_marker)
+        self.marker_pub.publish(end_marker)
+
+    def polygon_callback(self, msg):
+        self.latest_polygon = msg
+
+        if self.is_closed(msg) and not self.coverage_started:
+            self.coverage_started = True
+            self.start_coverage()
+
+    def reset_callback(self, _):
+        self.coverage_started = False
+        self.latest_polygon = None
+
+        delete_marker = Marker()
+        delete_marker.header.frame_id = "map"
+        delete_marker.ns = "coverage_points"
+        delete_marker.action = Marker.DELETEALL
+        self.marker_pub.publish(delete_marker)
+
+        empty_path = Path()
+        empty_path.header.frame_id = "map"
+        empty_path.header.stamp = self.get_clock().now().to_msg()
+        self.path_pub.publish(empty_path)
+
+    def start_coverage(self):
+        if self.latest_polygon is None:
+            return
+
+        coords = []
+        for p in self.latest_polygon.polygon.points:
+            c = Coordinate()
+            c.axis1 = float(p.x)
+            c.axis2 = float(p.y)
+            coords.append(c)
+
+        goal = ComputeCoveragePath.Goal()
+        poly = Coordinates()
+        poly.coordinates = coords
+
+        goal.polygons = [poly]
+        goal.frame_id = "map"
+
+        if not self.client.wait_for_server(timeout_sec=5.0):
+            return
+
+        future = self.client.send_goal_async(goal)
+        future.add_done_callback(self.goal_response)
+
+    def goal_response(self, future):
+        handle = future.result()
+        if not handle.accepted:
+            return
+
+        result_future = handle.get_result_async()
+        result_future.add_done_callback(self.result_callback)
+
+    def result_callback(self, future):
+        result = future.result().result
+        self.path_pub.publish(result.nav_path)
+        self.publish_start_end_markers(result.nav_path)
 
 
-def main(args=None):
-    rclpy.init(args=args)
+def main():
+    rclpy.init()
     node = CoverageClient()
     rclpy.spin(node)
-    node.destroy_node()
     rclpy.shutdown()
 
 

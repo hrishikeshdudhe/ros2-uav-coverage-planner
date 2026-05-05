@@ -1,47 +1,101 @@
+#!/usr/bin/env python3
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
+import os
+
 
 def generate_launch_description():
-    # -------------------------------
-    # Coverage Server (Lifecycle Node)
-    # -------------------------------
-    coverage_server_node = Node(
-        package='opennav_coverage',
-        executable='opennav_coverage',
-        name='coverage_server',
-        namespace='robot_namespace',
-        output='screen'
-    )
 
-    # -------------------------------
-    # Coverage Client
-    # -------------------------------
-    coverage_client_node = Node(
-        package='gps_anchor',
-        executable='coverage_client',
-        name='coverage_client',
-        namespace='robot_namespace',
-        output='screen'
-    )
+    namespace = 'robot_namespace'
 
-    # -------------------------------
-    # Lifecycle Manager (auto-activate server)
-    # -------------------------------
-    lifecycle_manager_node = Node(
-        package='nav2_lifecycle_manager',
-        executable='lifecycle_manager',
-        name='lifecycle_manager_coverage',
-        namespace='robot_namespace',
-        parameters=[{
-            # Full namespaced node
-            'node_names': ['coverage_server'],  
-            'autostart': True
-        }],
-        output='screen'
+    rviz_config = os.path.join(
+        get_package_share_directory('gps_anchor'),
+        'rviz',
+        'rviz_satellite_config.rviz'
     )
 
     return LaunchDescription([
-        coverage_server_node,
-        coverage_client_node,
-        lifecycle_manager_node
+
+        # ---------------------------
+        # GPS + Map Setup
+        # ---------------------------
+        Node(
+            package='gps_anchor',
+            executable='fake_gp_origin',
+            name='fake_gp_origin',
+            namespace=namespace,
+            output='screen'
+        ),
+
+        Node(
+            package='gps_anchor',
+            executable='map_anchor',
+            name='map_anchor',
+            namespace=namespace,
+            output='screen'
+        ),
+
+        Node(
+            package='gps_anchor',
+            executable='fixed_gps_publisher',
+            name='fixed_gps_publisher',
+            namespace=namespace,
+            output='screen'
+        ),
+
+        # ---------------------------
+        # Polygon Collector
+        # ---------------------------
+        Node(
+            package='gps_anchor',
+            executable='gps_polygon_collector',
+            name='gps_polygon_collector',
+            namespace=namespace,
+            output='screen'
+        ),
+
+        # ---------------------------
+        # Coverage Planner System
+        # ---------------------------
+        Node(
+            package='opennav_coverage',
+            executable='opennav_coverage',
+            name='coverage_server',
+            namespace=namespace,
+            output='screen'
+        ),
+
+        Node(
+            package='gps_anchor',
+            executable='coverage_client',
+            name='coverage_client',
+            namespace=namespace,
+            output='screen'
+        ),
+
+        Node(
+            package='nav2_lifecycle_manager',
+            executable='lifecycle_manager',
+            name='lifecycle_manager_coverage',
+            namespace=namespace,
+            parameters=[{
+                'node_names': ['coverage_server'],
+                'autostart': True
+            }],
+            output='screen'
+        ),
+
+        # ---------------------------
+        # RViz
+        # ---------------------------
+        Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            namespace=namespace,
+            arguments=['-d', rviz_config],
+            remappings=[('/tf', 'tf')],
+            output='screen'
+        ),
     ])
