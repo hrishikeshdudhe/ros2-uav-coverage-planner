@@ -14,13 +14,14 @@ from opennav_coverage_msgs.msg import Coordinate, Coordinates
 
 
 class CoverageClient(Node):
+
     def __init__(self):
         super().__init__('coverage_client')
 
         self.latest_polygon = None
-        self.coverage_started = False
+        self.running = False
 
-        # Subscribers
+        # SUBSCRIBERS
         self.create_subscription(
             PolygonStamped,
             'collected_polygon',
@@ -30,15 +31,15 @@ class CoverageClient(Node):
 
         self.create_subscription(
             Empty,
-            'polygon_reset',
-            self.reset_callback,
+            'polygon_ready',
+            self.trigger_callback,
             10
         )
 
-        # Publisher
-        self.path_pub = self.create_publisher(
-            Path,
-            'coverage_path',
+        self.create_subscription(
+            Empty,
+            'coverage_reset',
+            self.reset_callback,
             10
         )
 
@@ -49,98 +50,59 @@ class CoverageClient(Node):
             '/robot_namespace/compute_coverage_path'
         )
 
-        self.marker_pub = self.create_publisher(
-            Marker,
-            'coverage_markers',
+        # Outputs
+        self.path_pub = self.create_publisher(
+            Path,
+            'coverage_path_opennav',
             10
         )
 
-    def is_closed(self, msg):
-        if len(msg.polygon.points) < 4:
-            return False
+        self.marker_pub = self.create_publisher(
+            Marker,
+            'coverage_markers_opennav',
+            10
+        )
 
-        a = msg.polygon.points[0]
-        b = msg.polygon.points[-1]
-
-        return abs(a.x - b.x) < 0.01 and abs(a.y - b.y) < 0.01
-
-    def publish_start_end_markers(self, path):
-        if len(path.poses) == 0:
-            return
-
-        # -------- START MARKER (GREEN) --------
-        start = path.poses[0].pose.position
-
-        start_marker = Marker()
-        start_marker.header.frame_id = "map"
-        start_marker.header.stamp = self.get_clock().now().to_msg()
-        start_marker.ns = "coverage_points"
-        start_marker.id = 0
-        start_marker.type = Marker.SPHERE
-        start_marker.action = Marker.ADD
-
-        start_marker.pose.position = start
-        start_marker.scale.x = 1.5
-        start_marker.scale.y = 1.5
-        start_marker.scale.z = 1.5
-
-        start_marker.color.a = 1.0
-        start_marker.color.r = 0.0
-        start_marker.color.g = 1.0
-        start_marker.color.b = 0.0
-
-        # -------- END MARKER (RED) --------
-        end = path.poses[-1].pose.position
-
-        end_marker = Marker()
-        end_marker.header.frame_id = "map"
-        end_marker.header.stamp = self.get_clock().now().to_msg()
-        end_marker.ns = "coverage_points"
-        end_marker.id = 1
-        end_marker.type = Marker.SPHERE
-        end_marker.action = Marker.ADD
-
-        end_marker.pose.position = end
-        end_marker.scale.x = 1.5
-        end_marker.scale.y = 1.5
-        end_marker.scale.z = 1.5
-
-        end_marker.color.a = 1.0
-        end_marker.color.r = 1.0
-        end_marker.color.g = 0.0
-        end_marker.color.b = 0.0
-
-        # Publish both
-        self.marker_pub.publish(start_marker)
-        self.marker_pub.publish(end_marker)
-
+    # Store Polygon
     def polygon_callback(self, msg):
         self.latest_polygon = msg
 
-        if self.is_closed(msg) and not self.coverage_started:
-            self.coverage_started = True
-            self.start_coverage()
+    # Trigger
+    def trigger_callback(self, _):
 
-    def reset_callback(self, _):
-        self.coverage_started = False
-        self.latest_polygon = None
-
-        delete_marker = Marker()
-        delete_marker.header.frame_id = "map"
-        delete_marker.ns = "coverage_points"
-        delete_marker.action = Marker.DELETEALL
-        self.marker_pub.publish(delete_marker)
-
-        empty_path = Path()
-        empty_path.header.frame_id = "map"
-        empty_path.header.stamp = self.get_clock().now().to_msg()
-        self.path_pub.publish(empty_path)
-
-    def start_coverage(self):
-        if self.latest_polygon is None:
+        if self.running:
             return
 
+        if self.latest_polygon is None:
+            self.get_logger().warn("No polygon received")
+            return
+
+        if len(self.latest_polygon.polygon.points) < 3:
+            self.get_logger().warn("Invalid polygon")
+            return
+
+        self.running = True
+        self.start_coverage()
+
+    # Reset
+    def reset_callback(self, _):
+        self.latest_polygon = None
+        self.running = False
+
+        empty = Path()
+        empty.header.frame_id = "map"
+        self.path_pub.publish(empty)
+
+        delete = Marker()
+        delete.action = Marker.DELETEALL
+        self.marker_pub.publish(delete)
+        self.get_logger().info("OpenNav reset via shared topic")
+
+    # Start Coverage
+    def start_coverage(self):
+
         coords = []
+
         for p in self.latest_polygon.polygon.points:
             c = Coordinate()
             c.axis1 = float(p.x)
@@ -155,23 +117,71 @@ class CoverageClient(Node):
         goal.frame_id = "map"
 
         if not self.client.wait_for_server(timeout_sec=5.0):
+            self.get_logger().error("Coverage server not available")
             return
+
+        self.get_logger().info("Sending OpenNav coverage goal")
 
         future = self.client.send_goal_async(goal)
         future.add_done_callback(self.goal_response)
 
+    # Callbacks
     def goal_response(self, future):
         handle = future.result()
+
         if not handle.accepted:
+            self.running = False
             return
 
         result_future = handle.get_result_async()
         result_future.add_done_callback(self.result_callback)
 
     def result_callback(self, future):
+
+        self.running = False
+
         result = future.result().result
-        self.path_pub.publish(result.nav_path)
-        self.publish_start_end_markers(result.nav_path)
+
+        path = result.nav_path
+        self.path_pub.publish(path)
+
+        self.publish_markers(path)
+
+    # Markers
+    def publish_markers(self, path):
+
+        if len(path.poses) == 0:
+            return
+
+        start = path.poses[0].pose.position
+        end = path.poses[-1].pose.position
+
+        # Start
+        m1 = Marker()
+        m1.header.frame_id = "map"
+        m1.ns = "opennav_points"
+        m1.id = 0
+        m1.type = Marker.SPHERE
+        m1.action = Marker.ADD
+        m1.pose.position = start
+        m1.scale.x = m1.scale.y = m1.scale.z = 1.5
+        m1.color.a = 1.0
+        m1.color.g = 1.0
+
+        # End
+        m2 = Marker()
+        m2.header.frame_id = "map"
+        m2.ns = "opennav_points"
+        m2.id = 1
+        m2.type = Marker.SPHERE
+        m2.action = Marker.ADD
+        m2.pose.position = end
+        m2.scale.x = m2.scale.y = m2.scale.z = 1.5
+        m2.color.a = 1.0
+        m2.color.r = 1.0
+
+        self.marker_pub.publish(m1)
+        self.marker_pub.publish(m2)
 
 
 def main():

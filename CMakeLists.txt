@@ -59,4 +59,10 @@ install(PROGRAMS
   RENAME coverage_client
 )
 
+install(PROGRAMS
+  gps_anchor/stc_coverage_planner.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME stc_coverage_planner
+)
+
 ament_package()
