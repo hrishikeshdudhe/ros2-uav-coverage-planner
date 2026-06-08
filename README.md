@@ -36,7 +36,7 @@ gps_anchor/
 │   ├── stc_coverage_planner.py
 │
 ├── launch/
-│   └── rviz_coverage.py
+│   └── rviz_coverage_launch.py
 │   └── rviz_satellite_gp_origin_launch.py
 │   ├── rviz_satellite_launch.py
 │
@@ -156,7 +156,7 @@ Use this when the **system already provides a GPS origin**, e.g. from a drone st
 
 #### Launch file
 ```
-launch/rviz_coverage.py
+launch/rviz_coverage_launch.py
 ```
 
 #### Nodes started
@@ -179,7 +179,7 @@ launch/rviz_coverage.py
 #### Run
 
 ```bash
-ros2 launch gps_anchor rviz_coverage.py
+ros2 launch gps_anchor rviz_coverage_launch.py
 ```
 
 In a real system, **remove `fake_gp_origin`** and rely on the actual publisher.
@@ -235,7 +235,7 @@ The launch file loads it **relative to the package**, so no absolute paths are r
 ```bash
 colcon build
 source install/setup.bash
-ros2 launch gps_anchor rviz_satellite_gp_origin_launch.py
+ros2 launch gps_anchor rviz_coverage_launch.py
 ```
 
 ---
