@@ -47,7 +47,7 @@ class CoverageClient(Node):
         self.client = ActionClient(
             self,
             ComputeCoveragePath,
-            '/robot_namespace/compute_coverage_path'
+            'compute_coverage_path'
         )
 
         # Outputs
