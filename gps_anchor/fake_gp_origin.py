@@ -14,8 +14,8 @@ class FakeGpOrigin(Node):
         msg = GeoPointStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'earth'
-        msg.position.latitude = 48.8585324221701
-        msg.position.longitude = 2.294567128258988
+        msg.position.latitude = 49.4255
+        msg.position.longitude = 7.755
         msg.position.altitude = 271.0
         self.pub.publish(msg)
         self.get_logger().info('Published fake gp_origin')
@@ -28,4 +28,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

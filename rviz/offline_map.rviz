@@ -1,0 +1,121 @@
+Panels:
+  - Class: nav2_rviz_plugins/Navigation 2
+    Name: Navigation 2
+  - Class: rviz_common/Displays
+    Help Height: 70
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /Status1
+        - /Satellite Map1
+        - /AerialMap1
+      Splitter Ratio: 0.5
+    Tree Height: 371
+  - Class: rviz_common/Displays
+    Help Height: 70
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /Status1
+        - /AerialMap1
+      Splitter Ratio: 0.5
+    Tree Height: 822
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 1
+      Blocks: 3
+      Class: rviz_satellite/AerialMap
+      Draw Behind: false
+      Enabled: false
+      Name: Satellite Map
+      Object URI: ""
+      TF tolerance: 0.10000000149011612
+      Timeout: 3
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: ""
+      Use Local Map:
+        Meter per Pixel (Zoom 0): 0
+        Origin CRS: ""
+        "Origin X ": 0
+        "Origin Y ": 0
+        Value: false
+      Value: false
+      Visualize in UTM Frame: false
+      Zoom: 16
+    - Alpha: 0.699999988079071
+      Blocks: 3
+      Class: rviz_satellite/AerialMap
+      Draw Behind: false
+      Enabled: true
+      Name: AerialMap
+      Object URI: file:///home/hrishi/thesis_ws/src/gps_anchor/offline_tiles/{z}/{x}/{y}.png
+      TF tolerance: 0.10000000149011612
+      Timeout: 3
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_namespace/gps/fix
+      Use Local Map:
+        Meter per Pixel (Zoom 0): 0
+        Origin CRS: ""
+        "Origin X ": 0
+        "Origin Y ": 0
+        Value: false
+      Value: true
+      Visualize in UTM Frame: false
+      Zoom: 18
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools: ~
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 10
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.7853981852531433
+      Target Frame: <Fixed Frame>
+      Value: Orbit (rviz_default_plugins)
+      Yaw: 0.7853981852531433
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 1043
+  Hide Left Dock: false
+  Hide Right Dock: false
+  Navigation 2:
+    collapsed: false
+  QMainWindow State: 000000ff00000000fd000000010000000000000156000003b9fc0200000003fb00000018004e0061007600690067006100740069006f006e00200032000000003d000001390000013900fffffffb000000100044006900730070006c006100790073000000003d000003b9000000c900fffffffb000000100044006900730070006c006100790073010000003d000003b9000000c900ffffff00000624000003b900000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Width: 1920
+  X: 1920
+  Y: 0

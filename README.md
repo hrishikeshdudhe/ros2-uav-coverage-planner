@@ -6,8 +6,8 @@ This package allows a user to:
 
 1. Visualize GPS data on a satellite map in RViz  
 2. Mark a polygon interactively using clicked points  
-3. Send the polygon to the coverage planner  
-4. Visualize the resulting coverage path
+3. Send the polygon to two different coverage planners, the first being an open source planner named Opennav Coverage Planner. The other is a custom node which is an STC (Spawn Tree Coverage) based coverage planner.  
+4. Visualize the resulting coverage paths from both planners for comparison.
 
 ---
 
@@ -28,14 +28,17 @@ gps_anchor/
 │
 ├── gps_anchor/
 │   ├── __init__.py
+│   ├── coverage_client.py
 │   ├── fake_gp_origin.py
 │   ├── fixed_gps_publisher.py
-│   ├── map_anchor.py
 │   └── gps_polygon_collector.py
+│   ├── map_anchor.py
+│   ├── stc_coverage_planner.py
 │
 ├── launch/
-│   ├── rviz_satellite_launch.py
+│   └── rviz_coverage.py
 │   └── rviz_satellite_gp_origin_launch.py
+│   ├── rviz_satellite_launch.py
 │
 ├── rviz/
 │   └── (RViz configuration files)
@@ -57,44 +60,66 @@ gps_anchor/
 
 ### External Packages
 
-This package **does not ship** the RViz satellite plugin or the Coverage Server
+This package **does not ship** the RViz satellite plugin or the Coverage Server. 
 These are the repos for the coverage planner and the rviz_satellite plugin needed for the project.
+
 https://github.com/open-navigation/opennav_coverage/tree/humble
 https://github.com/nobleo/rviz_satellite/tree/main/
 
 You must clone them **into your workspace**
 
----
-
 ## Nodes
 
-### map_anchor
-Anchors the local `map` frame to the first received GPS origin.
-
-**Subscribes**
-- `/tarot650/global_position/gp_origin` (`geographic_msgs/GeoPointStamped`)
+### fake_gp_origin
+Simulates drone GPS home position/origin
 
 **Publishes**
-- `map`
+- Topic: /robot_namespace/tarot650/global_position/gp_origin
+- Type: geographic_msgs/GeoPointStamped
 
----
+### map_anchor
+Defines map (0,0,0) to correspond to incoming GPS origin, hence anchoring local Cartesian map frame to world GPS
+
+**Subscribes**
+- Topic: /robot_namespace/tarot650/global_position/gp_origin
+- Type: geographic_msgs/GeoPointStamped
+
+**Stores**
+
+ref_lat, ref_lon, ref_alt
+
+**Transformation**
+
+GPS Lat/Lon/Alt  → map origin
 
 ### fixed_gps_publisher
-Publishes a stable `/robot_namespace/gps/fix` message so RViz satellite plugins can display imagery.
+Creates standard ROS GPS topic from gp_origin
 
----
+**Subscribes**
+- Topic: /robot_namespace/tarot650/global_position/gp_origin
+- Type: geographic_msgs/GeoPointStamped
 
+**Publishes**
+- Topic: /robot_namespace/gps/fix
+- Type: sensor_msgs/NavSatFix
 ### gps_polygon_collector
-Allows interactive point selection and polygon creation in RViz.
-By clicking the last point inside a radius of 3 m from the first point, you can close the polygon. 
+Allows user to draw mission boundary in Rviz. User clicks points on map.
 
----
+**Subscribes**
+- Topic: /robot_namespace/clicked_point
+- Type: geometry_msgs/PointStamped
 
-### fake_gp_origin
-Testing utility that publishes a fake GPS origin for local development.
+**Publishes**
+- Topic: /robot_namespace/collected_polygon
+- Type: PolygonStamped
+- Topic: /robot_namespace/polygon_marker
+- Type: visualization_msgs/Marker
 
----
+**Transformation**
 
+Clicked RViz points → Polygon boundary, Clicked points → Visual line marker
+
+### 
 ## Launch Workflows
 
 ### 1. Manual Latitude / Longitude Workflow
@@ -115,7 +140,7 @@ launch/rviz_satellite_launch.py
 #### Run
 
 ```bash
-ros2 launch gps_anchor rviz_satellite_launch.py   latitude:=48.8584 longitude:=2.2945 altitude:=0.0
+ros2 launch gps_anchor rviz_satellite_launch.py   latitude:=48.8584 longitude:=2.2945 altitude:=0.
 ```
 
 Use this workflow for:
@@ -131,7 +156,7 @@ Use this when the **system already provides a GPS origin**, e.g. from a drone st
 
 #### Launch file
 ```
-launch/rviz_satellite_gp_origin_launch.py
+launch/rviz_coverage.py
 ```
 
 #### Nodes started
@@ -154,7 +179,7 @@ launch/rviz_satellite_gp_origin_launch.py
 #### Run
 
 ```bash
-ros2 launch gps_anchor rviz_satellite_gp_origin_launch.py
+ros2 launch gps_anchor rviz_coverage.py
 ```
 
 In a real system, **remove `fake_gp_origin`** and rely on the actual publisher.
@@ -175,10 +200,10 @@ Each new point:
 
 ### Resettomg the Polygon
 
-Polygon resetting is done via a **ROS 2 service**.
+Polygon resetting is done via a **ROS2 topic**.
 
 ```bash
-ros2 service call /robot_namespace/reset_polygon std_srvs/srv/Trigger
+ros2 topic pub /robot_namespace/coverage_reset std_msgs/msg/Empty "{}" --once
 ```
 
 Rules:

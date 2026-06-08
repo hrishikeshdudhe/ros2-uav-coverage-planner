@@ -18,9 +18,6 @@ def generate_launch_description():
 
     return LaunchDescription([
 
-        # =====================================================
-        # GPS + MAP SETUP
-        # =====================================================
         Node(
             package='gps_anchor',
             executable='fake_gp_origin',
@@ -45,9 +42,6 @@ def generate_launch_description():
             output='screen'
         ),
 
-        # =====================================================
-        # POLYGON COLLECTOR (single source of truth)
-        # =====================================================
         Node(
             package='gps_anchor',
             executable='gps_polygon_collector',
@@ -56,9 +50,6 @@ def generate_launch_description():
             output='screen'
         ),
 
-        # =====================================================
-        # OPENNAV COVERAGE SYSTEM
-        # =====================================================
         Node(
             package='opennav_coverage',
             executable='opennav_coverage',
@@ -75,9 +66,6 @@ def generate_launch_description():
             output='screen'
         ),
 
-        # =====================================================
-        # Custom COVERAGE PLANNER
-        # =====================================================
         Node(
             package='gps_anchor',
             executable='stc_coverage_planner',
@@ -86,9 +74,6 @@ def generate_launch_description():
             output='screen'
         ),
 
-        # =====================================================
-        # LIFECYCLE MANAGER (OpenNav only)
-        # =====================================================
         Node(
             package='nav2_lifecycle_manager',
             executable='lifecycle_manager',
@@ -100,10 +85,7 @@ def generate_launch_description():
             }],
             output='screen'
         ),
-
-        # =====================================================
-        # RVIZ
-        # =====================================================
+        
         Node(
             package='rviz2',
             executable='rviz2',

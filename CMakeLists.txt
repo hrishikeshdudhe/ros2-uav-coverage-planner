@@ -65,4 +65,8 @@ install(PROGRAMS
   RENAME stc_coverage_planner
 )
 
+install(DIRECTORY offline_tiles/
+  DESTINATION share/${PROJECT_NAME}/offline_tiles
+)
+
 ament_package()
