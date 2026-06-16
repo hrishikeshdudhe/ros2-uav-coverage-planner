@@ -28,14 +28,6 @@ def generate_launch_description():
 
         Node(
             package='gps_anchor',
-            executable='map_anchor',
-            name='map_anchor',
-            namespace=namespace,
-            output='screen'
-        ),
-
-        Node(
-            package='gps_anchor',
             executable='fixed_gps_publisher',
             name='fixed_gps_publisher',
             namespace=namespace,

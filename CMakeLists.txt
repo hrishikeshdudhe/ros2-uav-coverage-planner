@@ -42,12 +42,6 @@ install(PROGRAMS
 )
 
 install(PROGRAMS
-  gps_anchor/map_anchor.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME map_anchor
-)
-
-install(PROGRAMS
   gps_anchor/gps_polygon_collector.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME gps_polygon_collector

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import math
 import rclpy
 from rclpy.node import Node
 
@@ -35,7 +36,6 @@ class STCCoveragePlanner(Node):
     def cb_trigger(self, _):
         if self.running or self.poly is None:
             return
-
         self.running = True
         path = self.stc(self.poly)
         self.pub_path.publish(path)
@@ -43,135 +43,122 @@ class STCCoveragePlanner(Node):
         self.running = False
 
     def cb_reset(self, _):
-
         self.poly = None
         self.running = False
-
         empty = Path()
         empty.header.frame_id = "map"
         empty.header.stamp = self.get_clock().now().to_msg()
         self.pub_path.publish(empty)
-
         delete = Marker()
         delete.header.frame_id = "map"
         delete.ns = "stc"
         delete.action = Marker.DELETEALL
-
         self.pub_marker.publish(delete)
-
         self.get_logger().info("STC reset complete")
 
-    # STC
     def stc(self, poly_msg):
-
         poly = poly_msg.polygon.points
-
         if len(poly) < 3:
             return Path()
-
         xs = [p.x for p in poly]
         ys = [p.y for p in poly]
-
         xmin, xmax = min(xs), max(xs)
         ymin, ymax = min(ys), max(ys)
-
         step = self.res
-
-        cells = []
         coords = {}
-
+        cells = []
         r = 0
         y = ymin
-
         while y <= ymax:
             c = 0
             x = xmin
-
             while x <= xmax:
                 if self.in_poly(x, y, poly):
                     cells.append((r, c))
                 coords[(r, c)] = (x, y)
                 x += step
                 c += 1
-
             y += step
             r += 1
-
         if not cells:
             return Path()
-
+        
         cell_set = set(cells)
-
+        tree = {}
         def nbrs(cell):
             r, c = cell
             for dr, dc in [(1,0), (-1,0), (0,1), (0,-1)]:
-                n = (r+dr, c+dc)
+                n = (r + dr, c + dc)
                 if n in cell_set:
                     yield n
 
         visited = set()
-        order = []
-
-        def dfs(u):
+        def build_tree(u):
             visited.add(u)
-            order.append(coords[u])
-
+            tree[u] = []
             for v in nbrs(u):
                 if v not in visited:
-                    dfs(v)
-                    order.append(coords[u])  # STC backtrack
+                    tree[u].append(v)
+                    build_tree(v)
 
-        start = cells[0]
-        dfs(start)
+        root = cells[0]
+        build_tree(root)
+        order = []
 
+        def traverse(u):
+            order.append(coords[u])
+            for v in tree.get(u, []):
+                traverse(v)
+                order.append(coords[u])  # backtrack
+
+        traverse(root)
         path = Path()
         path.header.frame_id = "map"
         path.header.stamp = self.get_clock().now().to_msg()
-
-        for x, y in order:
-            p = PoseStamped()
-            p.header.frame_id = "map"
-            p.pose.position.x = float(x)
-            p.pose.position.y = float(y)
-            p.pose.orientation.w = 1.0
-            path.poses.append(p)
-
+        last_yaw = 0.0
+        for i in range(len(order)):
+            x, y = order[i]
+            pose = PoseStamped()
+            pose.header.frame_id = "map"
+            pose.pose.position.x = float(x)
+            pose.pose.position.y = float(y)
+            if i < len(order) - 1:
+                nx, ny = order[i + 1]
+                yaw = math.atan2(ny - y, nx - x)
+                last_yaw = yaw
+            else:
+                yaw = last_yaw
+            pose.pose.orientation.x = 0.0
+            pose.pose.orientation.y = 0.0
+            pose.pose.orientation.z = math.sin(yaw / 2.0)
+            pose.pose.orientation.w = math.cos(yaw / 2.0)
+            path.poses.append(pose)
         return path
 
-    # geometry
     def in_poly(self, x, y, poly):
         inside = False
         j = len(poly) - 1
-
         for i in range(len(poly)):
             xi, yi = poly[i].x, poly[i].y
             xj, yj = poly[j].x, poly[j].y
-
             if (yi > y) != (yj > y):
                 xin = (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi
                 if x < xin:
                     inside = not inside
-
             j = i
-
         return inside
 
-    # markers
     def publish_markers(self, path):
-
-        if len(path.poses) == 0:
+        if not path.poses:
             return
-
-        s = path.poses[0].pose.position
-        e = path.poses[-1].pose.position
-
+        start = path.poses[0].pose.position
+        end = path.poses[-1].pose.position
         m1 = Marker()
         m1.header.frame_id = "map"
         m1.ns = "stc"
         m1.id = 0
         m1.type = Marker.SPHERE
-        m1.action = Marker.ADD
-        m1.pose.position = s
+        m1.pose.position = start
         m1.scale.x = m1.scale.y = m1.scale.z = 2.0
         m1.color.a = 1.0
         m1.color.g = 1.0
@@ -181,8 +168,7 @@ class STCCoveragePlanner(Node):
         m2.ns = "stc"
         m2.id = 1
         m2.type = Marker.SPHERE
-        m2.action = Marker.ADD
-        m2.pose.position = e
+        m2.pose.position = end
         m2.scale.x = m2.scale.y = m2.scale.z = 2.0
         m2.color.a = 1.0
         m2.color.r = 1.0
@@ -190,14 +176,12 @@ class STCCoveragePlanner(Node):
         self.pub_marker.publish(m1)
         self.pub_marker.publish(m2)
 
-
 def main():
     rclpy.init()
     node = STCCoveragePlanner()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

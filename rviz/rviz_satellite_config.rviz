@@ -55,6 +55,7 @@ Visualization Manager:
       Blocks: 3
       Class: rviz_satellite/AerialMap
       Draw Behind: false
+      ENU Aligned Reference Frame: map
       Enabled: true
       Name: AerialMap
       Object URI: https://a.tile.openstreetmap.org/{z}/{x}/{y}.png

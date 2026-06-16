@@ -12,7 +12,6 @@ from visualization_msgs.msg import Marker
 from opennav_coverage_msgs.action import ComputeCoveragePath
 from opennav_coverage_msgs.msg import Coordinate, Coordinates
 
-
 class CoverageClient(Node):
 
     def __init__(self):
@@ -21,7 +20,6 @@ class CoverageClient(Node):
         self.latest_polygon = None
         self.running = False
 
-        # SUBSCRIBERS
         self.create_subscription(
             PolygonStamped,
             'collected_polygon',
@@ -43,14 +41,12 @@ class CoverageClient(Node):
             10
         )
 
-        # Action client
         self.client = ActionClient(
             self,
             ComputeCoveragePath,
             'compute_coverage_path'
         )
 
-        # Outputs
         self.path_pub = self.create_publisher(
             Path,
             'coverage_path_opennav',
@@ -69,18 +65,14 @@ class CoverageClient(Node):
 
     # Trigger
     def trigger_callback(self, _):
-
         if self.running:
             return
-
         if self.latest_polygon is None:
             self.get_logger().warn("No polygon received")
             return
-
         if len(self.latest_polygon.polygon.points) < 3:
             self.get_logger().warn("Invalid polygon")
             return
-
         self.running = True
         self.start_coverage()
 
@@ -88,11 +80,9 @@ class CoverageClient(Node):
     def reset_callback(self, _):
         self.latest_polygon = None
         self.running = False
-
         empty = Path()
         empty.header.frame_id = "map"
         self.path_pub.publish(empty)
-
         delete = Marker()
         delete.action = Marker.DELETEALL
         self.marker_pub.publish(delete)
@@ -100,63 +90,46 @@ class CoverageClient(Node):
 
     # Start Coverage
     def start_coverage(self):
-
         coords = []
-
         for p in self.latest_polygon.polygon.points:
             c = Coordinate()
             c.axis1 = float(p.x)
             c.axis2 = float(p.y)
             coords.append(c)
-
         goal = ComputeCoveragePath.Goal()
         poly = Coordinates()
         poly.coordinates = coords
-
         goal.polygons = [poly]
         goal.frame_id = "map"
-
         if not self.client.wait_for_server(timeout_sec=5.0):
             self.get_logger().error("Coverage server not available")
             return
-
         self.get_logger().info("Sending OpenNav coverage goal")
-
         future = self.client.send_goal_async(goal)
         future.add_done_callback(self.goal_response)
 
     # Callbacks
     def goal_response(self, future):
         handle = future.result()
-
         if not handle.accepted:
             self.running = False
             return
-
         result_future = handle.get_result_async()
         result_future.add_done_callback(self.result_callback)
 
     def result_callback(self, future):
-
         self.running = False
-
         result = future.result().result
-
         path = result.nav_path
         self.path_pub.publish(path)
-
         self.publish_markers(path)
 
     # Markers
     def publish_markers(self, path):
-
         if len(path.poses) == 0:
             return
-
         start = path.poses[0].pose.position
         end = path.poses[-1].pose.position
-
-        # Start
         m1 = Marker()
         m1.header.frame_id = "map"
         m1.ns = "opennav_points"
@@ -167,8 +140,6 @@ class CoverageClient(Node):
         m1.scale.x = m1.scale.y = m1.scale.z = 1.5
         m1.color.a = 1.0
         m1.color.g = 1.0
-
-        # End
         m2 = Marker()
         m2.header.frame_id = "map"
         m2.ns = "opennav_points"
@@ -179,17 +150,14 @@ class CoverageClient(Node):
         m2.scale.x = m2.scale.y = m2.scale.z = 1.5
         m2.color.a = 1.0
         m2.color.r = 1.0
-
         self.marker_pub.publish(m1)
         self.marker_pub.publish(m2)
-
 
 def main():
     rclpy.init()
     node = CoverageClient()
     rclpy.spin(node)
     rclpy.shutdown()
-
 
 if __name__ == "__main__":
     main()

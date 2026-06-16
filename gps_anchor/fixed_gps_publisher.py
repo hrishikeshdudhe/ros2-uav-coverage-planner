@@ -34,6 +34,8 @@ class FixedGPSPublisher(Node):
         msg.latitude = self.lat
         msg.longitude = self.lon
         msg.altitude = self.alt
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'map'
         self.publisher_.publish(msg)
 
 def main():
