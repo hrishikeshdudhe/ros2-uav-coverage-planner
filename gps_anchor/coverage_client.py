@@ -82,12 +82,19 @@ class CoverageClient(Node):
         self.running = False
         empty = Path()
         empty.header.frame_id = "map"
+        empty.header.stamp = self.get_clock().now().to_msg()
         self.path_pub.publish(empty)
-        delete = Marker()
-        delete.action = Marker.DELETEALL
-        self.marker_pub.publish(delete)
-        self.get_logger().info("OpenNav reset via shared topic")
+        for i in [0, 1]:
+            m = Marker()
+            m.header.frame_id = "map"
+            m.header.stamp = self.get_clock().now().to_msg()
+            m.ns = "opennav_points"
+            m.id = i
+            m.action = Marker.DELETE
+            self.marker_pub.publish(m)
 
+        self.get_logger().info("OpenNav reset complete")
+        
     # Start Coverage
     def start_coverage(self):
         coords = []

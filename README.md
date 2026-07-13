@@ -143,7 +143,7 @@ ros2 launch gps_anchor rviz_coverage_offline_launch.py
 Polygon resetting is done via a **ROS2 topic**.
 
 ```bash
-ros2 topic pub /robot_namespace/coverage_reset std_msgs/msg/Empty "{}" --once
+ros2 topic pub /robot_namespace/coverage_reset std_msgs/msg/Empty "{}"
 ```
 
 Rules:

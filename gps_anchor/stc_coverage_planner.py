@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import sys
+sys.setrecursionlimit(100000)
 
 import math
 import rclpy
@@ -15,7 +17,7 @@ class STCCoveragePlanner(Node):
     def __init__(self):
         super().__init__('stc_coverage_planner')
 
-        self.declare_parameter('resolution', 5.0)
+        self.declare_parameter('resolution', 3.0)
         self.res = self.get_parameter('resolution').value
 
         self.poly = None
